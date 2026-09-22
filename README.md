@@ -1,18 +1,55 @@
-﻿# Azure Hub-and-Spoke Network Foundation (Terraform)
+# Azure Hub-and-Spoke Network Foundation (Terraform)
 
-![Terraform CI](https://github.com/aniket-devop/azure-landing-zone-terraform/actions/workflows/terraform-ci.yml/badge.svg)
+![Terraform CI](https://github.com/aniket-devop/azure-network-foundation-terraform/actions/workflows/terraform-ci.yml/badge.svg)
+![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.6-844FBA?logo=terraform&logoColor=white)
+![Azure](https://img.shields.io/badge/Azure-Networking-0078D4?logo=microsoftazure&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Last Commit](https://img.shields.io/github/last-commit/aniket-devop/azure-network-foundation-terraform)
+![Repo Size](https://img.shields.io/github/repo-size/aniket-devop/azure-network-foundation-terraform)
 
-A Terraform-built Azure networking and security foundation: one hub VNet (Azure Firewall + Bastion), one spoke VNet with a deny-by-default NSG and an AKS-named subnet, egress forced through the Firewall via a route table, an RBAC-authorized Key Vault, and role assignments scoped to the resource group instead of the subscription. Built and re-deployable across two environments (`dev`, `prod`) from a single, DRY Terraform configuration.
+A Terraform-built Azure networking and security foundation: one **hub VNet** (Azure Firewall + Bastion), one **spoke VNet** with a deny-by-default NSG and an AKS-named subnet, egress forced through the Firewall via a route table, an RBAC-authorized Key Vault, and role assignments scoped to the resource group instead of the subscription. Built and re-deployable across two environments (`dev`, `prod`) from a single, DRY Terraform configuration.
 
-This is a personal, sandbox-scale project — not a multi-subscription enterprise landing zone. See [What this is / isn't](#what-this-is--isnt) below before assuming otherwise.
+> This is a personal, sandbox-scale project — not a multi-subscription enterprise landing zone. See [What this is / isn't](#what-this-is--isnt) before assuming otherwise.
 
 ![Architecture diagram](diagrams/architecture.png)
+
+### At a glance
+
+| | |
+|---|---|
+| **Cloud** | Microsoft Azure |
+| **IaC** | Terraform — 7 independent, reusable modules |
+| **Topology** | Hub-and-spoke, single subscription |
+| **Environments** | `dev`, `prod` — same `main.tf`, separate `.tfvars` |
+| **CI** | GitHub Actions — `fmt`, `init`, `validate` on every PR/push |
+| **Security posture** | Deny-by-default NSG · centralized egress via Firewall · Bastion-only admin access · RG-scoped RBAC |
+| **Status** | Actively iterating — see [Roadmap](#roadmap) |
+
+---
+
+## Table of contents
+
+- [What this is / isn't](#what-this-is--isnt)
+- [Key engineering decisions](#key-engineering-decisions)
+- [Technology stack](#technology-stack)
+- [Module structure](#module-structure)
+- [Environment strategy](#environment-strategy)
+- [Security controls](#security-controls)
+- [Skills demonstrated](#skills-demonstrated)
+- [CI/CD](#cicd)
+- [Getting started](#getting-started)
+- [Remote state setup](#remote-state-setup)
+- [Current limitations](#current-limitations)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+---
 
 ## What this is / isn't
 
 **Is:** a networking + security foundation — VNets, Firewall, Bastion, NSGs, routing, Key Vault access control, and least-privilege RBAC, all as reusable Terraform modules, correctly wired and re-deployable per environment.
 
-**Isn't:** an Azure landing zone in the Microsoft Cloud Adoption Framework sense (no management-group hierarchy, no Azure Policy, no multi-subscription governance), and doesn't yet run any actual workload — there's no VM or AKS cluster deployed, just the network and subnet the AKS cluster would eventually sit in.
+**Isn't:** an Azure landing zone in the Microsoft Cloud Adoption Framework sense (no management-group hierarchy, no Azure Policy, no multi-subscription governance), and doesn't yet run any actual workload — there's no VM or AKS cluster deployed, just the network and subnet an AKS cluster would eventually sit in.
 
 ## Key engineering decisions
 
@@ -27,27 +64,27 @@ This is a personal, sandbox-scale project — not a multi-subscription enterpris
 
 ## Technology stack
 
-Terraform Â· Azure Virtual Network Â· Azure Firewall Â· Azure Bastion Â· Azure Key Vault Â· Azure RBAC Â· GitHub Actions
+Terraform · Azure Virtual Network · Azure Firewall · Azure Bastion · Azure Key Vault · Azure RBAC · GitHub Actions
 
 ## Module structure
 
 ```
-azure-landing-zone-terraform/
-â”œâ”€â”€ modules/
-â”‚   â”œâ”€â”€ hub-network/     # Hub VNet + AzureFirewallSubnet, AzureBastionSubnet, shared-services subnet
-â”‚   â”œâ”€â”€ spoke-network/   # Spoke VNet + snet-aks, deny-by-default NSG
-â”‚   â”œâ”€â”€ peering/         # Symmetric hub<->spoke VNet peering
-â”‚   â”œâ”€â”€ firewall/        # Azure Firewall, default-deny policy, explicit allow rules (HTTPS, DNS)
-â”‚   â”œâ”€â”€ bastion/         # Azure Bastion host, no public IP on any workload
-â”‚   â”œâ”€â”€ key-vault/       # Key Vault: RBAC authorization + network ACL
-â”‚   â””â”€â”€ rbac/            # Role assignments scoped to a resource group
-â”œâ”€â”€ environments/
-â”‚   â”œâ”€â”€ dev/             # Composes every module above + a route table forcing egress through the Firewall
-â”‚   â””â”€â”€ prod/            # Identical main.tf to dev — different .tfvars only
-â”œâ”€â”€ docs/architecture.md # Design decisions, trade-offs, and current limitations
-â”œâ”€â”€ tests/README.md      # Honest status: no automated tests exist yet, and why
-â”œâ”€â”€ CHANGELOG.md
-â””â”€â”€ .github/workflows/terraform-ci.yml
+azure-network-foundation-terraform/
+├── modules/
+│   ├── hub-network/     # Hub VNet + AzureFirewallSubnet, AzureBastionSubnet, shared-services subnet
+│   ├── spoke-network/   # Spoke VNet + snet-aks, deny-by-default NSG
+│   ├── peering/         # Symmetric hub<->spoke VNet peering
+│   ├── firewall/        # Azure Firewall, default-deny policy, explicit allow rules (HTTPS, DNS)
+│   ├── bastion/         # Azure Bastion host, no public IP on any workload
+│   ├── key-vault/       # Key Vault: RBAC authorization + network ACL
+│   └── rbac/            # Role assignments scoped to a resource group
+├── environments/
+│   ├── dev/             # Composes every module above + a route table forcing egress through the Firewall
+│   └── prod/            # Identical main.tf to dev — different .tfvars only
+├── docs/architecture.md # Design decisions, trade-offs, and current limitations
+├── tests/README.md      # Honest status: no automated tests exist yet, and why
+├── CHANGELOG.md
+└── .github/workflows/terraform-ci.yml
 ```
 
 ## Environment strategy
@@ -56,11 +93,20 @@ azure-landing-zone-terraform/
 
 ## Security controls
 
-- **Network**: deny-by-default NSG on the spoke subnet; all subnet egress forced through Azure Firewall via a route table (not just an allow-listed firewall sitting unused).
-- **Firewall**: default-deny policy with two explicit allow rules (outbound HTTPS, outbound DNS) — everything else from the spoke is dropped.
-- **Admin access**: Azure Bastion only — no VM in this design has, or needs, a public IP.
-- **Key Vault**: RBAC authorization (not legacy access policies) plus a network ACL restricting access to the AKS subnet. No Private Endpoint in this repo — see [`docs/architecture.md`](docs/architecture.md) for why and what the trade-off is.
-- **IAM**: every role assignment scoped to a resource group via the `rbac` module — never a subscription-level `Owner`/`Contributor` grant.
+- **Network** — deny-by-default NSG on the spoke subnet; all subnet egress forced through Azure Firewall via a route table (not just an allow-listed firewall sitting unused).
+- **Firewall** — default-deny policy with two explicit allow rules (outbound HTTPS, outbound DNS) — everything else from the spoke is dropped.
+- **Admin access** — Azure Bastion only; no VM in this design has, or needs, a public IP.
+- **Key Vault** — RBAC authorization (not legacy access policies) plus a network ACL restricting access to the AKS subnet. No Private Endpoint in this repo — see [`docs/architecture.md`](docs/architecture.md) for why, and what the trade-off is.
+- **IAM** — every role assignment scoped to a resource group via the `rbac` module — never a subscription-level `Owner`/`Contributor` grant.
+
+## Skills demonstrated
+
+- **Modular Terraform design** — seven independent modules (`hub-network`, `spoke-network`, `peering`, `firewall`, `bastion`, `key-vault`, `rbac`) composed per environment instead of one monolithic config.
+- **Defense-in-depth network security** — NSG deny-by-default, centralized Firewall egress via route tables, and Bastion for admin access are layered, not standalone.
+- **Least-privilege IAM** — every role assignment scoped to a resource group, never a subscription-level grant.
+- **Environment parity by design** — `dev` and `prod` run the exact same `main.tf`; only `.tfvars` differ, removing an entire class of environment-drift bugs.
+- **CI fundamentals** — GitHub Actions pipeline enforcing `terraform fmt` and `terraform validate` on every change.
+- **Engineering documentation discipline** — explicit scope boundaries, a documented trade-off log ([`docs/architecture.md`](docs/architecture.md)), and an honest limitations/roadmap section instead of overstating what's built.
 
 ## CI/CD
 
@@ -72,17 +118,18 @@ terraform init -backend=false   (environments/dev)
 terraform validate              (environments/dev)
 ```
 
-That's the whole pipeline. No `terraform plan`, no `apply` automation, no manual approval gate, no Checkov/tfsec/TFLint, no OIDC — those aren't implemented, and this README won't claim they are. A small, honest, green pipeline beats a large one nobody's verified.
+That's the whole pipeline today — no `terraform plan`, no `apply` automation, no manual approval gate, no Checkov/tfsec/TFLint, no OIDC. Those aren't implemented yet, and this README won't claim they are. A small, honest, green pipeline beats a large one nobody's verified.
 
-## How to validate
+## Getting started
 
 ```bash
-cd environments/dev   # or environments/prod
+git clone https://github.com/aniket-devop/azure-network-foundation-terraform.git
+cd azure-network-foundation-terraform/environments/dev   # or environments/prod
 terraform init
 terraform validate
 ```
 
-## Remote state
+## Remote state setup
 
 Both environments use an `azurerm` backend (`backend.tf`) pointing at a storage account + container that's created once, by hand, before the first `terraform init`:
 
@@ -104,12 +151,21 @@ Update `storage_account_name` in `environments/*/backend.tf` to match before run
 
 ## Roadmap
 
-- `terraform plan` posted as a PR comment in CI (before adding `apply` automation).
-- Real `terraform test` coverage against the actual module resource names.
-- Screenshots of a real `terraform plan`/`apply` run and the deployed resource group in the Azure Portal.
+- [ ] `terraform plan` posted as a PR comment in CI (before adding `apply` automation)
+- [ ] Real `terraform test` coverage against the actual module resource names
+- [ ] Screenshots of a real `terraform plan`/`apply` run and the deployed resource group in the Azure Portal
+- [ ] Security scanning in CI (Checkov / tfsec)
 
 ## License
 
 [MIT](LICENSE)
 
+---
 
+<div align="center">
+
+**Aniket Kumar** · DevOps Engineer
+
+[GitHub](https://github.com/aniket-devop) · [LinkedIn](https://linkedin.com/in/aniket484)
+
+</div>
