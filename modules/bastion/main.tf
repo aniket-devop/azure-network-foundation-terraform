@@ -1,5 +1,5 @@
-# Bastion replaces a jump box with a public IP. This exists specifically so
-# no VM in this landing zone ever needs its own public IP for admin access.
+# Bastion replaces a jump box with a public IP. This exists so that
+# no VM in this network ever needs its own public IP for admin access.
 resource "azurerm_public_ip" "bastion" {
   name                = "pip-${var.bastion_name}"
   resource_group_name = var.resource_group_name
@@ -13,7 +13,7 @@ resource "azurerm_bastion_host" "this" {
   name                = var.bastion_name
   resource_group_name = var.resource_group_name
   location            = var.location
-  sku                 = "Standard"
+  sku                 = var.sku
   tags                = var.tags
 
   ip_configuration {
