@@ -1,12 +1,12 @@
 # Target Architecture (Planned Design)
 
-> **Status: PLANNED DESIGN.** Nothing described in this document is deployed to Azure yet.
+> **Status: DESIGN DOCUMENT.** The design below is in Terraform code and validated in CI. Only the bootstrap root (state storage) was ever applied to Azure, and it was destroyed afterwards. The hub and spokes are not deployed.
 > See the implementation status table at the end of this document for what is validated, planned, deployed, or tested.
 
 ## 1. Purpose
 
 This document describes the target Azure hub-spoke network foundation that this repository is being refactored towards.
-It is a design document. The Terraform code in the repository does not fully match it yet.
+It is a design document. The implementation status table at the end shows what is in code, validated, deployed or tested.
 
 Goals:
 
@@ -96,7 +96,7 @@ Deploy order: hub first, then spokes.
 Spokes read hub outputs through `terraform_remote_state`.
 The hub receives spoke CIDR ranges as input variables, so it can build Firewall rules per spoke.
 
-Remote state storage (resource group and storage account) will be created by a separate bootstrap step before the first `terraform init` with a backend.
+Remote state storage (resource group, storage account and container) is created by the `environments/bootstrap` root, which uses local state, before the first `terraform init` with a backend.
 
 
 ## 6. Design Trade-offs
@@ -112,23 +112,21 @@ Note: larger enterprises often use separate non-production and production hubs. 
 
 ## 7. Implementation Status
 
-Legend: Locally validated = `terraform init -backend=false` and `terraform validate` passed. Planned = designed, not implemented. Deployed = exists in Azure. Tested = automated tests exist and passed.
+Legend: Validated = `terraform init -backend=false` and `terraform validate` passed in CI. Planned = designed, not implemented. Deployed = exists in Azure. Tested = automated tests exist and passed.
 
 | Item | Status |
 |------|--------|
-| hub-network module contract restored, azurerm ~> 4.0 (PR #1) | Locally validated, CI validate passed on dev |
-| Existing dev and prod environments (old single-root layout) | Locally validated only |
-| Split into hub, spoke-dev, spoke-prod roots | Planned |
-| Remote state bootstrap (resource group, storage account) | Planned |
-| Route table forcing 0.0.0.0/0 to Firewall | Planned (not in code yet) |
-| Unique peering names per spoke | Planned |
-| Per-spoke Firewall rules and FQDN rules | Planned |
-| Key Vault Private Endpoint and Private DNS | Planned |
-| CI: fmt, init, validate (dev only) | Implemented |
-| CI: TFLint, Checkov, plan, OIDC, approval gates | Planned |
-| Deployment to Azure | Not deployed |
-| Automated tests | None yet |
-
+| hub-network module, azurerm ~> 4.0 (PR #1) | Validated |
+| Split into bootstrap, hub, spoke-dev and spoke-prod roots | Implemented, validated |
+| Remote state bootstrap (resource group, storage account, container) | Implemented. Applied once to a live subscription (3 resources) and then destroyed |
+| Route table forcing 0.0.0.0/0 to the Firewall | Implemented, validated only |
+| Unique peering names per spoke | Implemented, validated only |
+| Per-spoke Firewall rules (spoke-to-spoke deny, HTTPS FQDN allow) | Implemented, validated only |
+| Key Vault Private Endpoint and Private DNS | Implemented, validated only |
+| CI: fmt, init, validate on 4 roots, Checkov (report only), TFLint | Implemented |
+| CI: plan, OIDC, approval gates | Planned |
+| Deployment to Azure | Only bootstrap was applied (then destroyed). Hub and spokes not deployed |
+| Automated tests | None yet (planned) |
 
 ## 8. Cost and Deployment Approach
 

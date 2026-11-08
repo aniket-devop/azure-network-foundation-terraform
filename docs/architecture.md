@@ -1,60 +1,57 @@
 # Architecture
 
+This document shows the design as implemented in Terraform. For the planned design and its trade-offs see [target-architecture.md](target-architecture.md). For what is verified, see the README.
+
 ## Overview
 
 ```mermaid
 flowchart TB
-    subgraph MG["Management Group: mg-platform"]
-        subgraph SUB["Subscription: sub-platform"]
-            subgraph HUB["Hub VNet — 10.0.0.0/16"]
-                FW["Azure Firewall"]
-                BASTION["Azure Bastion"]
-                SHARED["Shared Services"]
-            end
-            subgraph SPOKE["Spoke VNet — 10.1.0.0/16"]
-                subgraph NSGB["NSG boundary"]
-                    AKSC["AKS Subnet"]
-                end
-                KV["Key Vault"]
-                RBAC["RBAC — scoped per RG"]
-            end
+    subgraph SUB["Single Azure subscription"]
+        subgraph HUB["Hub VNet - 10.0.0.0/16"]
+            FW["Azure Firewall"]
+            BASTION["Azure Bastion"]
+            SHARED["Shared Services subnet"]
+        end
+        subgraph DEV["Spoke dev VNet - 10.1.0.0/16"]
+            DEVAKS["snet-aks (NSG + route table)"]
+            DEVPE["snet-private-endpoints"]
+            DEVKV["Key Vault (private endpoint)"]
+        end
+        subgraph PROD["Spoke prod VNet - 10.2.0.0/16"]
+            PRODAKS["snet-aks (NSG + route table)"]
+            PRODPE["snet-private-endpoints"]
+            PRODKV["Key Vault (private endpoint)"]
         end
     end
 
-    HUB -. VNet Peering .- SPOKE
-    FW -. "controls egress" .-> NSGB
+    HUB <-. VNet peering .-> DEV
+    HUB <-. VNet peering .-> PROD
+    DEVAKS -. "0.0.0.0/0 via route table" .-> FW
+    PRODAKS -. "0.0.0.0/0 via route table" .-> FW
 ```
 
-## CI status (current, real)
+There is no management group or Azure Policy in this project. Dev and prod are not peered with each other, and the Firewall policy has a rule that denies spoke-to-spoke traffic. This is the design in code. The hub and spokes have not been deployed to Azure.
+
+## CI status (current)
 
 ```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant PR as Pull Request
-    participant CI as terraform-ci.yml
-
-    Dev->>PR: Open PR with .tf changes
-    PR->>CI: Trigger fmt -check, init, validate
+flowchart LR
+    PR["Pull request or push to main"] --> V["Format and Validate x4 (bootstrap, hub, spoke-dev, spoke-prod)"]
+    PR --> C["Checkov scan (report only)"]
+    PR --> T["TFLint"]
 ```
 
-That's the entire pipeline right now. No security scanning, no plan posting, no apply automation — those are TODOs below, not implemented features. This diagram gets updated only after each one is actually added and confirmed working in a real Actions run.
+Not implemented yet: terraform plan in CI, apply automation, OIDC to Azure, approval gates and automated terraform tests. This diagram is updated only after each one is added and confirmed in a real Actions run.
 
 ## Design decisions and trade-offs
 
 | Decision | Alternative considered | Why this one |
 |---|---|---|
-| Hub-and-spoke | Flat single VNet | Centralizes firewall/Bastion once instead of duplicating per spoke |
-| NSG deny-by-default at spoke boundary | Relying on VNet-level trust | AKS subnet shouldn't inherit trust from anything else on the VNet |
-| Azure Bastion | Jump box with public IP | No VM needs a public IP; removes an entire attack surface class |
-| RBAC scoped to resource group | Subscription-level Owner/Contributor | Blast radius of a compromised credential is one RG, not the subscription |
-| Manual apply (planned, not built yet) | Auto-apply on merge to main | Want a human to read the plan before anything changes state — this is a decision, not yet a working workflow |
-
-## 📝 TODO: Apply workflow
-
-There is currently **no apply automation in this repo at all** — `terraform apply` has only ever been run manually from a local machine (per the original project notes). A `workflow_dispatch`-triggered apply workflow, gated by a GitHub environment protection rule, is a planned next step, not something that exists yet. It will be added and documented here once it's built and actually run successfully at least once.
-
-## Known limitations
-
-- No Azure Policy at the management group level yet (tracked in [Issues](../../issues)).
-- No private endpoint on Key Vault in this repo — network ACL + RBAC is the boundary here. The private-endpoint pattern is used end-to-end in the AKS platform repo instead.
-- Only `terraform destroy` and `terraform plan` have been run against a real subscription. No load testing, no chaos testing.
+| Hub-and-spoke | Flat single VNet | Firewall and Bastion exist once in the hub instead of per environment |
+| Four Terraform roots with separate state | One root for everything | Smaller blast radius per apply, independent state per environment |
+| NSG with explicit DenyAllInbound on the AKS subnet | Relying on Azure default rules | The deny-by-default posture is visible and version-controlled |
+| Route table sending 0.0.0.0/0 to the Firewall | Direct internet egress | Firewall rules only matter if traffic is routed to them |
+| Azure Bastion | Jump box with a public IP | No VM needs its own public IP for administration |
+| Key Vault with Private Endpoint and private DNS, public access disabled | Network ACL only | Access goes through the private network only |
+| RBAC scoped to a resource group | Subscription-level Owner or Contributor | Blast radius of a compromised credential is one resource group |
+| Manual apply, no apply automation | Auto-apply on merge to main | A human reads the plan first; Firewall and Bastion are billed hourly |
