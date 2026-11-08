@@ -47,8 +47,10 @@ resource "azurerm_firewall" "this" {
   }
 }
 
-# One rule collection group per spoke. Deny rules have a lower priority number,
-# so they are evaluated before the allow rules.
+# One rule collection group per spoke. Network rules always run before
+# application rules. The network rule denies spoke-to-spoke traffic and the
+# application rule allows HTTPS only to the listed FQDNs. There is no DNS rule:
+# VMs use the default Azure DNS. Revisit this if DNS proxy is added.
 resource "azurerm_firewall_policy_rule_collection_group" "spoke" {
   for_each = var.spoke_address_spaces
 
@@ -70,19 +72,6 @@ resource "azurerm_firewall_policy_rule_collection_group" "spoke" {
     }
   }
 
-  network_rule_collection {
-    name     = "allow-dns"
-    priority = 210
-    action   = "Allow"
-
-    rule {
-      name                  = "allow-dns-out"
-      protocols             = ["UDP"]
-      source_addresses      = each.value
-      destination_addresses = ["*"]
-      destination_ports     = ["53"]
-    }
-  }
 
   application_rule_collection {
     name     = "allow-https-fqdn"
