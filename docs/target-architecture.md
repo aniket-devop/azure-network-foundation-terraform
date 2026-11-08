@@ -128,3 +128,29 @@ Legend: Locally validated = `terraform init -backend=false` and `terraform valid
 | CI: TFLint, Checkov, plan, OIDC, approval gates | Planned |
 | Deployment to Azure | Not deployed |
 | Automated tests | None yet |
+
+
+## 8. Cost and Deployment Approach
+
+Azure Firewall and Azure Bastion are billed per hour while deployed, so cost control is part of the design.
+
+Approach:
+
+1. Build and validate first, without deploying: `terraform fmt`, `validate`, TFLint, Checkov and `terraform plan` in CI.
+2. A short real test of the hub only is planned for later. It will happen only after explicit approval, and only after the conditions below are met.
+3. Spokes and a full deployment are out of scope until the hub test is done and reviewed.
+
+Conditions before any real deployment:
+
+- Check current prices for the target region in the Azure Pricing Calculator (list prices differ by region and SKU).
+- Create an Azure budget alert first.
+- Use the lowest suitable Firewall and Bastion SKUs (SKU is a variable in the modules).
+- Deploy only for a short window (a few hours), then run `terraform destroy`.
+
+Teardown verification:
+
+- Run `terraform destroy` for the hub.
+- Run `az group list` and confirm that no project resource group remains.
+- Check Cost Management the next day for unexpected charges.
+
+Until this test is done, this repository is described as validated and planned, not deployed.
