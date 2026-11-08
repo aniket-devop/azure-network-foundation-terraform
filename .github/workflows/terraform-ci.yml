@@ -8,8 +8,12 @@ on:
 
 jobs:
   fmt-validate:
-    name: Format and Validate
+    name: Format and Validate (${{ matrix.root }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [bootstrap, hub, spoke-dev, spoke-prod]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,10 +26,10 @@ jobs:
       - name: Terraform fmt (check only)
         run: terraform fmt -check -recursive
 
-      - name: Terraform init (dev)
-        working-directory: environments/dev
+      - name: Terraform init (${{ matrix.root }})
+        working-directory: environments/${{ matrix.root }}
         run: terraform init -backend=false
 
-      - name: Terraform validate (dev)
-        working-directory: environments/dev
+      - name: Terraform validate (${{ matrix.root }})
+        working-directory: environments/${{ matrix.root }}
         run: terraform validate
