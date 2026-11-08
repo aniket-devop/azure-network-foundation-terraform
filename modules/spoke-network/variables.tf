@@ -28,3 +28,23 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "private_endpoint_subnet_prefix" {
+  description = "CIDR for the private endpoint subnet"
+  type        = string
+}
+
+variable "firewall_private_ip" {
+  description = "Private IP of the hub Azure Firewall. Used as next hop in the route table."
+  type        = string
+}
+
+variable "aks_nsg_name" {
+  description = "Name of the NSG attached to the AKS subnet"
+  type        = string
+}
+
+variable "route_table_name" {
+  description = "Name of the route table that sends spoke egress to the firewall"
+  type        = string
+}
